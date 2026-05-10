@@ -3,7 +3,7 @@ mod config;
 mod error;
 mod routes;
 
-use actix_web::{web, App, HttpServer};
+use actix_web::{App, HttpServer, web};
 use app_state::AppState;
 use config::Config;
 use dotenvy::dotenv;
@@ -41,7 +41,5 @@ fn init_logging() {
         Err(_) => "image_indexer_demo=info,actix_web=info".to_string(),
     };
 
-    tracing_subscriber::fmt()
-        .with_env_filter(rust_log)
-        .init();
+    tracing_subscriber::fmt().with_env_filter(rust_log).init();
 }

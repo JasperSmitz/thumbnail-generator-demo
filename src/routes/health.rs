@@ -1,4 +1,4 @@
-use actix_web::{web, HttpResponse};
+use actix_web::{HttpResponse, web};
 
 pub fn configure(config: &mut web::ServiceConfig) {
     config.route("/health", web::get().to(health));
