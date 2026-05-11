@@ -1,6 +1,8 @@
+use std::str::FromStr;
+
 use chrono::{DateTime, Utc};
 use sqlx::Row;
-use sqlx::sqlite::{SqlitePool, SqlitePoolOptions, SqliteRow};
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePool, SqlitePoolOptions, SqliteRow};
 use uuid::Uuid;
 
 use crate::domain::{ImageJob, ImageJobStatus};
@@ -13,9 +15,18 @@ pub struct SqliteImageJobRepository {
 
 impl SqliteImageJobRepository {
     pub async fn connect(database_url: &str) -> Result<Self, RepositoryError> {
+        let options = match SqliteConnectOptions::from_str(database_url) {
+            Ok(value) => value.create_if_missing(true),
+            Err(error) => {
+                return Err(RepositoryError::Database(sqlx::Error::Configuration(
+                    Box::new(error),
+                )));
+            }
+        };
+
         let pool = SqlitePoolOptions::new()
             .max_connections(1)
-            .connect(database_url)
+            .connect_with(options)
             .await?;
 
         let repository = Self { pool };

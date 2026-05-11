@@ -2,14 +2,20 @@ mod app_state;
 mod config;
 mod domain;
 mod error;
+mod processing;
 mod repository;
 mod routes;
+mod storage;
+
+use std::io;
+use std::sync::Arc;
 
 use actix_web::{App, HttpServer, web};
 use app_state::AppState;
 use config::Config;
 use dotenvy::dotenv;
-use tracing::info;
+use repository::{ImageJobRepository, SqliteImageJobRepository};
+use tracing::{error, info};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -23,7 +29,20 @@ async fn main() -> std::io::Result<()> {
     let config = Config::from_env();
     let bind_address = config.bind_address();
 
-    let state = web::Data::new(AppState::new(config));
+    let repository = match SqliteImageJobRepository::connect(&config.database_url).await {
+        Ok(value) => value,
+        Err(error) => {
+            error!("Failed to initialize SQLite repository: {}", error);
+
+            return Err(io::Error::new(
+                io::ErrorKind::Other,
+                "failed to initialize SQLite repository",
+            ));
+        }
+    };
+
+    let image_jobs: Arc<dyn ImageJobRepository> = Arc::new(repository);
+    let state = web::Data::new(AppState::new(config, image_jobs));
 
     info!("Starting image-indexer-demo on {}", bind_address);
 
