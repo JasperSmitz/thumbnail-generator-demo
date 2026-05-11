@@ -54,6 +54,14 @@ fn generate_thumbnail(
         Err(error) => return Err(ProcessingError::ReadImage(error.to_string())),
     };
 
+    match output_path.parent() {
+        Some(parent) => match std::fs::create_dir_all(parent) {
+            Ok(_) => {}
+            Err(error) => return Err(ProcessingError::WriteImage(error.to_string())),
+        },
+        None => {}
+    }
+
     let thumbnail = image.resize(width, height, FilterType::Triangle);
 
     match thumbnail.save(&output_path) {

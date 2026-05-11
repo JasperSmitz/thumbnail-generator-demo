@@ -1,6 +1,7 @@
 use actix_web::{HttpResponse, ResponseError};
 use thiserror::Error;
 
+use crate::processing::ProcessingError;
 use crate::repository::RepositoryError;
 
 #[derive(Debug, Error)]
@@ -13,6 +14,9 @@ pub enum AppError {
 
     #[error("file storage error: {0}")]
     Storage(String),
+
+    #[error("processing error: {0}")]
+    Processing(#[from] ProcessingError),
 
     #[error("repository error: {0}")]
     Repository(#[from] RepositoryError),
@@ -29,6 +33,7 @@ impl ResponseError for AppError {
             AppError::Storage(message) => {
                 HttpResponse::InternalServerError().body(message.to_string())
             }
+            AppError::Processing(_) => HttpResponse::InternalServerError().body(self.to_string()),
             AppError::Repository(_) => HttpResponse::InternalServerError().body(self.to_string()),
             AppError::Internal => HttpResponse::InternalServerError().body(self.to_string()),
         }
