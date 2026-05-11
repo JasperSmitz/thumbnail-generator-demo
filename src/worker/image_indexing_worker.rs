@@ -1,27 +1,28 @@
 use std::path::Path;
 use std::sync::Arc;
 
-use chrono::{Duration as ChronoDuration, Utc};
+use chrono::Utc;
 use tokio::time::{Duration, sleep};
 use tracing::{error, info, warn};
 
 use crate::processing::ImageProcessor;
 use crate::repository::ImageJobRepository;
 use crate::storage::{build_thumbnail_path, path_to_string};
+use crate::worker::RetryPolicy;
 
 #[derive(Debug, Clone)]
 pub struct WorkerConfig {
     pub storage_root: String,
     pub idle_sleep_ms: u64,
-    pub failure_retry_delay_seconds: i64,
+    pub retry_policy: RetryPolicy,
 }
 
 impl WorkerConfig {
-    pub fn new(storage_root: String) -> Self {
+    pub fn new(storage_root: String, max_attempts: u32) -> Self {
         Self {
             storage_root,
             idle_sleep_ms: 500,
-            failure_retry_delay_seconds: 30,
+            retry_policy: RetryPolicy::new(max_attempts),
         }
     }
 }
@@ -132,11 +133,12 @@ impl ImageIndexingWorker {
 
     async fn mark_job_failed(&self, job: &mut crate::domain::ImageJob, message: String) {
         let now = Utc::now();
+        let attempts_after_failure = job.attempts + 1;
 
-        let next_retry_at = match job.attempts + 1 >= job.max_attempts {
-            true => None,
-            false => Some(now + ChronoDuration::seconds(self.config.failure_retry_delay_seconds)),
-        };
+        let next_retry_at = self
+            .config
+            .retry_policy
+            .next_retry_at(attempts_after_failure, now);
 
         let failed_result = job.mark_failed(message, next_retry_at, now);
 

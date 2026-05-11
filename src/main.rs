@@ -52,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     let worker = ImageIndexingWorker::new(
         image_jobs.clone(),
         processor,
-        WorkerConfig::new(config.storage_root.clone()),
+        WorkerConfig::new(config.storage_root.clone(), config.max_attempts),
     );
 
     actix_web::rt::spawn(async move {
