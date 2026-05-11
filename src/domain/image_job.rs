@@ -170,12 +170,7 @@ mod tests {
     fn new_job_starts_as_pending() {
         let now = Utc::now();
 
-        let job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            3,
-            now,
-        );
+        let job = new_test_job(3, now);
 
         assert_eq!(job.status, ImageJobStatus::Pending);
         assert_eq!(job.attempts, 0);
@@ -190,12 +185,7 @@ mod tests {
     fn pending_job_can_transition_to_processing() {
         let now = Utc::now();
 
-        let mut job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            3,
-            now,
-        );
+        let mut job = new_test_job(3, now);
 
         let result = job.mark_processing(now);
 
@@ -207,23 +197,18 @@ mod tests {
     fn processing_job_can_transition_to_done() {
         let now = Utc::now();
 
-        let mut job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            3,
-            now,
-        );
+        let mut job = new_test_job(3, now);
 
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
 
-        let done_result = job.mark_done("storage/thumbnails/room.jpg".to_string(), now);
+        let done_result = job.mark_done("storage/thumbnails/image.png".to_string(), now);
 
         assert_eq!(done_result, Ok(()));
         assert_eq!(job.status, ImageJobStatus::Done);
         assert_eq!(
             job.thumbnail_path,
-            Some("storage/thumbnails/room.jpg".to_string())
+            Some("storage/thumbnails/image.png".to_string())
         );
         assert_eq!(job.last_error, None);
         assert_eq!(job.next_retry_at, None);
@@ -235,12 +220,7 @@ mod tests {
         let now = Utc::now();
         let retry_at = now + Duration::seconds(10);
 
-        let mut job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            3,
-            now,
-        );
+        let mut job = new_test_job(3, now);
 
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
@@ -262,16 +242,38 @@ mod tests {
     }
 
     #[test]
+    fn pending_job_cannot_transition_directly_to_done() {
+        let now = Utc::now();
+
+        let mut job = new_test_job(3, now);
+
+        let result = job.mark_done("storage/thumbnails/image.png".to_string(), now);
+
+        assert_eq!(result.is_err(), true);
+        assert_eq!(job.status, ImageJobStatus::Pending);
+    }
+
+    #[test]
+    fn processing_job_cannot_be_marked_processing_again() {
+        let now = Utc::now();
+
+        let mut job = new_test_job(3, now);
+
+        let first_result = job.mark_processing(now);
+        assert_eq!(first_result, Ok(()));
+
+        let second_result = job.mark_processing(now);
+
+        assert_eq!(second_result.is_err(), true);
+        assert_eq!(job.status, ImageJobStatus::Processing);
+    }
+
+    #[test]
     fn failed_job_can_retry_after_retry_time_has_passed() {
         let now = Utc::now();
         let retry_at = now - Duration::seconds(1);
 
-        let mut job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            3,
-            now,
-        );
+        let mut job = new_test_job(3, now);
 
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
@@ -288,16 +290,26 @@ mod tests {
     }
 
     #[test]
+    fn failed_job_without_retry_time_can_retry_if_attempts_remain() {
+        let now = Utc::now();
+
+        let mut job = new_test_job(3, now);
+
+        let processing_result = job.mark_processing(now);
+        assert_eq!(processing_result, Ok(()));
+
+        let failed_result = job.mark_failed("temporary failure".to_string(), None, now);
+        assert_eq!(failed_result, Ok(()));
+
+        assert_eq!(job.can_retry(now), true);
+    }
+
+    #[test]
     fn failed_job_cannot_retry_before_retry_time() {
         let now = Utc::now();
         let retry_at = now + Duration::seconds(60);
 
-        let mut job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            3,
-            now,
-        );
+        let mut job = new_test_job(3, now);
 
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
@@ -318,12 +330,7 @@ mod tests {
         let now = Utc::now();
         let retry_at = now - Duration::seconds(1);
 
-        let mut job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            1,
-            now,
-        );
+        let mut job = new_test_job(1, now);
 
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
@@ -338,19 +345,29 @@ mod tests {
     }
 
     #[test]
-    fn pending_job_cannot_transition_directly_to_done() {
+    fn done_job_cannot_be_failed() {
         let now = Utc::now();
 
-        let mut job = ImageJob::new(
-            "room.jpg".to_string(),
-            "storage/originals/room.jpg".to_string(),
-            3,
+        let mut job = new_test_job(3, now);
+
+        let processing_result = job.mark_processing(now);
+        assert_eq!(processing_result, Ok(()));
+
+        let done_result = job.mark_done("storage/thumbnails/image.png".to_string(), now);
+        assert_eq!(done_result, Ok(()));
+
+        let failed_result = job.mark_failed("should not fail after done".to_string(), None, now);
+
+        assert_eq!(failed_result.is_err(), true);
+        assert_eq!(job.status, ImageJobStatus::Done);
+    }
+
+    fn new_test_job(max_attempts: u32, now: chrono::DateTime<Utc>) -> ImageJob {
+        ImageJob::new(
+            "image.jpg".to_string(),
+            "storage/originals/image.jpg".to_string(),
+            max_attempts,
             now,
-        );
-
-        let result = job.mark_done("storage/thumbnails/room.jpg".to_string(), now);
-
-        assert_eq!(result.is_err(), true);
-        assert_eq!(job.status, ImageJobStatus::Pending);
+        )
     }
 }

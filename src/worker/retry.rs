@@ -45,6 +45,38 @@ mod tests {
     use crate::worker::retry::RetryPolicy;
 
     #[test]
+    fn zero_attempts_has_no_delay() {
+        let policy = RetryPolicy::new(3);
+
+        assert_eq!(policy.backoff_seconds(0), 0);
+    }
+
+    #[test]
+    fn retry_policy_uses_expected_backoff_table() {
+        let policy = RetryPolicy::new(10);
+
+        assert_eq!(policy.backoff_seconds(1), 10);
+        assert_eq!(policy.backoff_seconds(2), 30);
+        assert_eq!(policy.backoff_seconds(3), 120);
+        assert_eq!(policy.backoff_seconds(4), 600);
+        assert_eq!(policy.backoff_seconds(5), 1800);
+        assert_eq!(policy.backoff_seconds(99), 1800);
+    }
+
+    #[test]
+    fn retry_policy_allows_retry_before_max_attempts() {
+        let now = Utc::now();
+        let policy = RetryPolicy::new(3);
+
+        let next_retry_at = policy.next_retry_at(2, now);
+
+        assert_eq!(
+            next_retry_at.map(|value| (value - now).num_seconds()),
+            Some(30)
+        );
+    }
+
+    #[test]
     fn first_failure_retries_after_10_seconds() {
         let now = Utc::now();
         let policy = RetryPolicy::new(3);
@@ -68,16 +100,6 @@ mod tests {
             next_retry_at.map(|value| (value - now).num_seconds()),
             Some(30)
         );
-    }
-
-    #[test]
-    fn third_failure_does_not_retry_when_max_attempts_is_three() {
-        let now = Utc::now();
-        let policy = RetryPolicy::new(3);
-
-        let next_retry_at = policy.next_retry_at(3, now);
-
-        assert_eq!(next_retry_at, None);
     }
 
     #[test]
@@ -107,6 +129,16 @@ mod tests {
     }
 
     #[test]
+    fn retry_policy_returns_none_when_max_attempts_reached() {
+        let now = Utc::now();
+        let policy = RetryPolicy::new(3);
+
+        let next_retry_at = policy.next_retry_at(3, now);
+
+        assert_eq!(next_retry_at, None);
+    }
+
+    #[test]
     fn max_attempts_prevents_retry_even_if_backoff_exists() {
         let now = Utc::now();
         let policy = RetryPolicy::new(5);
@@ -114,12 +146,5 @@ mod tests {
         let next_retry_at = policy.next_retry_at(5, now);
 
         assert_eq!(next_retry_at, None);
-    }
-
-    #[test]
-    fn zero_attempts_has_no_delay() {
-        let policy = RetryPolicy::new(3);
-
-        assert_eq!(policy.backoff_seconds(0), 0);
     }
 }
