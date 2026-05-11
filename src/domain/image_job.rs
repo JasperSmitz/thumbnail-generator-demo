@@ -44,10 +44,7 @@ impl ImageJob {
         }
     }
 
-    pub fn mark_processing(
-        &mut self,
-        now: DateTime<Utc>,
-    ) -> Result<(), ImageJobTransitionError> {
+    pub fn mark_processing(&mut self, now: DateTime<Utc>) -> Result<(), ImageJobTransitionError> {
         match self.status {
             ImageJobStatus::Pending => {
                 self.status = ImageJobStatus::Processing;
@@ -220,10 +217,7 @@ mod tests {
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
 
-        let done_result = job.mark_done(
-            "storage/thumbnails/room.jpg".to_string(),
-            now,
-        );
+        let done_result = job.mark_done("storage/thumbnails/room.jpg".to_string(), now);
 
         assert_eq!(done_result, Ok(()));
         assert_eq!(job.status, ImageJobStatus::Done);
@@ -282,11 +276,7 @@ mod tests {
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
 
-        let failed_result = job.mark_failed(
-            "temporary failure".to_string(),
-            Some(retry_at),
-            now,
-        );
+        let failed_result = job.mark_failed("temporary failure".to_string(), Some(retry_at), now);
         assert_eq!(failed_result, Ok(()));
 
         assert_eq!(job.can_retry(now), true);
@@ -312,11 +302,7 @@ mod tests {
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
 
-        let failed_result = job.mark_failed(
-            "temporary failure".to_string(),
-            Some(retry_at),
-            now,
-        );
+        let failed_result = job.mark_failed("temporary failure".to_string(), Some(retry_at), now);
         assert_eq!(failed_result, Ok(()));
 
         assert_eq!(job.can_retry(now), false);
@@ -342,11 +328,7 @@ mod tests {
         let processing_result = job.mark_processing(now);
         assert_eq!(processing_result, Ok(()));
 
-        let failed_result = job.mark_failed(
-            "permanent failure".to_string(),
-            Some(retry_at),
-            now,
-        );
+        let failed_result = job.mark_failed("permanent failure".to_string(), Some(retry_at), now);
         assert_eq!(failed_result, Ok(()));
 
         assert_eq!(job.status, ImageJobStatus::Failed);
@@ -366,10 +348,7 @@ mod tests {
             now,
         );
 
-        let result = job.mark_done(
-            "storage/thumbnails/room.jpg".to_string(),
-            now,
-        );
+        let result = job.mark_done("storage/thumbnails/room.jpg".to_string(), now);
 
         assert_eq!(result.is_err(), true);
         assert_eq!(job.status, ImageJobStatus::Pending);

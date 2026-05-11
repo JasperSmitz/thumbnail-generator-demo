@@ -2,6 +2,7 @@ mod app_state;
 mod config;
 mod domain;
 mod error;
+mod repository;
 mod routes;
 
 use actix_web::{App, HttpServer, web};
